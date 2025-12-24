@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "582335850632",
+    "project_id": "zyraslot",
+    "storage_bucket": "zyraslot.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:582335850632:android:d1e4885face2da2995973d",
+        "android_client_info": {
+          "package_name": "com.example.zyraslot"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "582335850632-t4qradcoht6vfu6617kjmbvcmgkntfco.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAigtBFNp3meYwWHvmH2w_DjtV43k8Jh5E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "582335850632-t4qradcoht6vfu6617kjmbvcmgkntfco.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
