@@ -610,10 +610,10 @@ class _AllBookingsTab extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  BOOKING CARD WIDGET
+//  BOOKING CARD WIDGET WITH AUTO-APPROVE TIMER
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _BookingCard extends StatelessWidget {
+class _BookingCard extends StatefulWidget {
   final BookingModel booking;
   final ShopModel shop;
   final bool showActions;
@@ -625,8 +625,67 @@ class _BookingCard extends StatelessWidget {
   });
 
   @override
+  State<_BookingCard> createState() => _BookingCardState();
+}
+
+class _BookingCardState extends State<_BookingCard> {
+  late Duration _remainingTime;
+  bool _isAutoApproved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateRemainingTime();
+    if (widget.booking.isPending) {
+      _startAutoApproveTimer();
+    }
+  }
+
+  void _calculateRemainingTime() {
+    final autoApproveTime = widget.booking.createdAt.add(const Duration(minutes: 30));
+    final now = DateTime.now();
+    _remainingTime = autoApproveTime.difference(now);
+    if (_remainingTime.isNegative) {
+      _remainingTime = Duration.zero;
+    }
+  }
+
+  void _startAutoApproveTimer() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      if (widget.booking.isPending && !_isAutoApproved) {
+        _calculateRemainingTime();
+        if (_remainingTime <= Duration.zero) {
+          _autoApprove();
+        } else {
+          setState(() {});
+          _startAutoApproveTimer();
+        }
+      }
+    });
+  }
+
+  Future<void> _autoApprove() async {
+    if (_isAutoApproved) return;
+    _isAutoApproved = true;
+    final shopService = context.read<ShopService>();
+    await shopService.approveBooking(
+      widget.shop.id,
+      widget.booking.id,
+      widget.booking.seatId,
+    );
+  }
+
+  String _formatRemainingTime() {
+    if (_remainingTime <= Duration.zero) return "Auto-approving...";
+    final minutes = _remainingTime.inMinutes;
+    final seconds = _remainingTime.inSeconds % 60;
+    return "${minutes}m ${seconds.toString().padLeft(2, '0')}s";
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor(booking.status);
+    final statusColor = _getStatusColor(widget.booking.status);
     final dateFormat = DateFormat('MMM d, h:mm a');
 
     return Container(
@@ -639,6 +698,37 @@ class _BookingCard extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Auto-approve countdown for pending bookings
+          if (widget.booking.isPending)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.timer_rounded, size: 16, color: AppColors.warning),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Auto-approve in: ",
+                    style: GoogleFonts.crimsonText(
+                      fontSize: 12,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                  Text(
+                    _formatRemainingTime(),
+                    style: GoogleFonts.crimsonText(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Main Content
           Padding(
             padding: const EdgeInsets.all(16),
@@ -663,7 +753,7 @@ class _BookingCard extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            booking.customerName,
+                            widget.booking.customerName,
                             style: GoogleFonts.crimsonText(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -678,7 +768,7 @@ class _BookingCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              _getStatusName(booking.status),
+                              _getStatusName(widget.booking.status),
                               style: GoogleFonts.crimsonText(
                                 fontSize: 10,
                                 color: statusColor,
@@ -690,7 +780,7 @@ class _BookingCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        booking.customerPhone,
+                        widget.booking.customerPhone,
                         style: GoogleFonts.crimsonText(
                           fontSize: 13,
                           color: AppColors.textTertiary,
@@ -702,7 +792,7 @@ class _BookingCard extends StatelessWidget {
                           Icon(Icons.schedule_rounded, size: 14, color: AppColors.textTertiary),
                           const SizedBox(width: 4),
                           Text(
-                            dateFormat.format(booking.startTime),
+                            dateFormat.format(widget.booking.startTime),
                             style: GoogleFonts.crimsonText(
                               fontSize: 12,
                               color: AppColors.textTertiary,
@@ -712,7 +802,7 @@ class _BookingCard extends StatelessWidget {
                           Icon(Icons.timer_rounded, size: 14, color: AppColors.textTertiary),
                           const SizedBox(width: 4),
                           Text(
-                            "${booking.durationHours}h",
+                            "${widget.booking.durationHours}h",
                             style: GoogleFonts.crimsonText(
                               fontSize: 12,
                               color: AppColors.textTertiary,
@@ -729,7 +819,7 @@ class _BookingCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      "\$${booking.totalAmount.toStringAsFixed(0)}",
+                      "\$${widget.booking.totalAmount.toStringAsFixed(0)}",
                       style: GoogleFonts.playfairDisplay(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -742,8 +832,8 @@ class _BookingCard extends StatelessWidget {
             ),
           ),
 
-          // Actions
-          if (showActions && (booking.isConfirmed || booking.isInProgress))
+          // Actions for PENDING bookings - Approve/Reject
+          if (widget.showActions && widget.booking.isPending)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -756,9 +846,60 @@ class _BookingCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: () {
                         context.read<ShopService>().cancelBooking(
-                              shop.id,
-                              booking.id,
-                              booking.seatId,
+                              widget.shop.id,
+                              widget.booking.id,
+                              widget.booking.seatId,
+                            );
+                      },
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text("Reject"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        context.read<ShopService>().approveBooking(
+                              widget.shop.id,
+                              widget.booking.id,
+                              widget.booking.seatId,
+                            );
+                      },
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: const Text("Approve"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Actions for CONFIRMED bookings - Cancel/Complete
+          if (widget.showActions && (widget.booking.isConfirmed || widget.booking.isInProgress))
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        context.read<ShopService>().cancelBooking(
+                              widget.shop.id,
+                              widget.booking.id,
+                              widget.booking.seatId,
                             );
                       },
                       icon: const Icon(Icons.close_rounded, size: 18),
@@ -775,9 +916,9 @@ class _BookingCard extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         context.read<ShopService>().completeBooking(
-                              shop.id,
-                              booking.id,
-                              booking.seatId,
+                              widget.shop.id,
+                              widget.booking.id,
+                              widget.booking.seatId,
                             );
                       },
                       icon: const Icon(Icons.check_rounded, size: 18),

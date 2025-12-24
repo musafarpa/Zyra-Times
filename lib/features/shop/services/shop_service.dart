@@ -8,6 +8,7 @@ import 'package:zyraslot/models/staff_model.dart';
 import 'package:zyraslot/models/booking_model.dart';
 import 'package:zyraslot/models/service_model.dart';
 import 'package:zyraslot/models/notification_model.dart';
+import 'package:zyraslot/models/chat_model.dart';
 
 class ShopService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -316,7 +317,7 @@ class ShopService extends ChangeNotifier {
   //  BOOKING MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Future<void> createBooking(BookingModel booking) async {
+  Future<void> createBooking(BookingModel booking, {bool autoConfirm = false}) async {
     final docRef = _firestore
         .collection('shops')
         .doc(booking.shopId)
@@ -334,22 +335,50 @@ class ShopService extends ChangeNotifier {
       endTime: booking.endTime,
       durationHours: booking.durationHours,
       totalAmount: booking.totalAmount,
-      status: BookingStatus.confirmed,
+      status: autoConfirm ? BookingStatus.confirmed : BookingStatus.pending,
       notes: booking.notes,
       createdAt: DateTime.now(),
     );
 
     await docRef.set(newBooking.toMap());
 
-    // Update seat status
+    // Update seat status to reserved for pending, occupied for confirmed
     await updateSeatStatus(
       booking.shopId,
       booking.seatId,
-      SeatStatus.occupied,
+      autoConfirm ? SeatStatus.occupied : SeatStatus.reserved,
       customerId: booking.customerId,
     );
 
     notifyListeners();
+  }
+
+  // Approve a pending booking
+  Future<void> approveBooking(String shopId, String bookingId, String seatId) async {
+    await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('bookings')
+        .doc(bookingId)
+        .update({
+      'status': BookingStatus.confirmed.name,
+    });
+
+    // Update seat status to occupied
+    await updateSeatStatus(shopId, seatId, SeatStatus.occupied);
+    notifyListeners();
+  }
+
+  // Check and auto-approve a single pending booking if 30 minutes passed
+  Future<bool> checkAndAutoApprove(BookingModel booking) async {
+    if (booking.status != BookingStatus.pending) return false;
+
+    final thirtyMinutesAgo = DateTime.now().subtract(const Duration(minutes: 30));
+    if (booking.createdAt.isBefore(thirtyMinutesAgo)) {
+      await approveBooking(booking.shopId, booking.id, booking.seatId);
+      return true;
+    }
+    return false;
   }
 
   Future<void> updateBookingStatus(String shopId, String bookingId, BookingStatus status) async {
@@ -415,7 +444,7 @@ class ShopService extends ChangeNotifier {
         .collection('shops')
         .doc(shopId)
         .collection('bookings')
-        .where('status', whereIn: ['confirmed', 'inProgress'])
+        .where('status', whereIn: ['pending', 'confirmed', 'inProgress'])
         .snapshots()
         .map((snapshot) {
       return snapshot.docs
@@ -753,5 +782,188 @@ class ShopService extends ChangeNotifier {
     final hour = dateTime.hour > 12 ? dateTime.hour - 12 : (dateTime.hour == 0 ? 12 : dateTime.hour);
     final period = dateTime.hour >= 12 ? 'PM' : 'AM';
     return '${months[dateTime.month - 1]} ${dateTime.day} at $hour:${dateTime.minute.toString().padLeft(2, '0')} $period';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  CHAT MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Get or create a chat room between customer and shop
+  Future<ChatRoom> getOrCreateChatRoom({
+    required String shopId,
+    required String shopName,
+    required String customerId,
+    required String customerName,
+  }) async {
+    // Check if chat room already exists
+    final existingRoom = await _firestore
+        .collection('chatRooms')
+        .where('shopId', isEqualTo: shopId)
+        .where('customerId', isEqualTo: customerId)
+        .limit(1)
+        .get();
+
+    if (existingRoom.docs.isNotEmpty) {
+      return ChatRoom.fromMap(existingRoom.docs.first.data(), existingRoom.docs.first.id);
+    }
+
+    // Create new chat room
+    final docRef = _firestore.collection('chatRooms').doc();
+    final newRoom = ChatRoom(
+      id: docRef.id,
+      shopId: shopId,
+      shopName: shopName,
+      customerId: customerId,
+      customerName: customerName,
+      createdAt: DateTime.now(),
+    );
+
+    await docRef.set(newRoom.toMap());
+    return newRoom;
+  }
+
+  // Send a message
+  Future<void> sendMessage({
+    required String chatRoomId,
+    required String senderId,
+    required String senderName,
+    required String senderType,
+    required String message,
+  }) async {
+    final docRef = _firestore
+        .collection('chatRooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .doc();
+
+    final newMessage = ChatMessage(
+      id: docRef.id,
+      chatRoomId: chatRoomId,
+      senderId: senderId,
+      senderName: senderName,
+      senderType: senderType,
+      message: message,
+      timestamp: DateTime.now(),
+    );
+
+    await docRef.set(newMessage.toMap());
+
+    // Update chat room with last message
+    final updateData = <String, dynamic>{
+      'lastMessage': message,
+      'lastMessageTime': Timestamp.now(),
+      'lastSenderId': senderId,
+    };
+
+    // Increment unread count for the other party
+    if (senderType == 'customer') {
+      updateData['unreadCountShop'] = FieldValue.increment(1);
+    } else {
+      updateData['unreadCountCustomer'] = FieldValue.increment(1);
+    }
+
+    await _firestore.collection('chatRooms').doc(chatRoomId).update(updateData);
+    notifyListeners();
+  }
+
+  // Get messages for a chat room
+  Stream<List<ChatMessage>> getMessages(String chatRoomId) {
+    return _firestore
+        .collection('chatRooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => ChatMessage.fromMap(doc.data(), doc.id))
+          .toList();
+    });
+  }
+
+  // Get chat rooms for a shop
+  Stream<List<ChatRoom>> getShopChatRooms(String shopId) {
+    return _firestore
+        .collection('chatRooms')
+        .where('shopId', isEqualTo: shopId)
+        .snapshots()
+        .map((snapshot) {
+      final rooms = snapshot.docs
+          .map((doc) => ChatRoom.fromMap(doc.data(), doc.id))
+          .toList();
+      // Sort by lastMessageTime descending (in memory to avoid index requirement)
+      rooms.sort((a, b) {
+        if (a.lastMessageTime == null && b.lastMessageTime == null) return 0;
+        if (a.lastMessageTime == null) return 1;
+        if (b.lastMessageTime == null) return -1;
+        return b.lastMessageTime!.compareTo(a.lastMessageTime!);
+      });
+      return rooms;
+    });
+  }
+
+  // Get chat rooms for a customer
+  Stream<List<ChatRoom>> getCustomerChatRooms(String customerId) {
+    return _firestore
+        .collection('chatRooms')
+        .where('customerId', isEqualTo: customerId)
+        .snapshots()
+        .map((snapshot) {
+      final rooms = snapshot.docs
+          .map((doc) => ChatRoom.fromMap(doc.data(), doc.id))
+          .toList();
+      // Sort by lastMessageTime descending (in memory to avoid index requirement)
+      rooms.sort((a, b) {
+        if (a.lastMessageTime == null && b.lastMessageTime == null) return 0;
+        if (a.lastMessageTime == null) return 1;
+        if (b.lastMessageTime == null) return -1;
+        return b.lastMessageTime!.compareTo(a.lastMessageTime!);
+      });
+      return rooms;
+    });
+  }
+
+  // Mark messages as read
+  Future<void> markMessagesAsRead(String chatRoomId, String viewerType) async {
+    // Reset unread count for the viewer
+    final updateData = <String, dynamic>{};
+    if (viewerType == 'shop') {
+      updateData['unreadCountShop'] = 0;
+    } else {
+      updateData['unreadCountCustomer'] = 0;
+    }
+
+    await _firestore.collection('chatRooms').doc(chatRoomId).update(updateData);
+    notifyListeners();
+  }
+
+  // Get total unread count for shop
+  Stream<int> getShopUnreadChatCount(String shopId) {
+    return _firestore
+        .collection('chatRooms')
+        .where('shopId', isEqualTo: shopId)
+        .snapshots()
+        .map((snapshot) {
+      int total = 0;
+      for (var doc in snapshot.docs) {
+        total += (doc.data()['unreadCountShop'] ?? 0) as int;
+      }
+      return total;
+    });
+  }
+
+  // Get total unread count for customer
+  Stream<int> getCustomerUnreadChatCount(String customerId) {
+    return _firestore
+        .collection('chatRooms')
+        .where('customerId', isEqualTo: customerId)
+        .snapshots()
+        .map((snapshot) {
+      int total = 0;
+      for (var doc in snapshot.docs) {
+        total += (doc.data()['unreadCountCustomer'] ?? 0) as int;
+      }
+      return total;
+    });
   }
 }

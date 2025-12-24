@@ -8,13 +8,21 @@ import 'package:zyraslot/features/auth/wrapper.dart';
 import 'package:zyraslot/features/shop/services/shop_service.dart';
 import 'package:zyraslot/features/admin/services/admin_service.dart';
 import 'firebase_options.dart';
+// Uncomment to seed admin user (run once, then comment out):
+import 'package:zyraslot/scripts/seed_admin_user.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SEED ADMIN USER - Run once, then comment out this line
+  // Creates: musafarfake1@gmail.com / 2244Hopper (admin role)
+  // ═══════════════════════════════════════════════════════════════════════
+  await seedAdminUser();
+
   runApp(const MyApp());
 }
 

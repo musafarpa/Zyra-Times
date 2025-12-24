@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -5,7 +6,6 @@ import 'package:zyraslot/core/constants/app_colors.dart';
 import 'package:zyraslot/features/admin/screens/admin_shop_list.dart';
 import 'package:zyraslot/features/admin/screens/admin_user_list.dart';
 import 'package:zyraslot/features/auth/services/auth_service.dart';
-import 'package:zyraslot/widgets/animated_saloon_widgets.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -15,9 +15,10 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   late AnimationController _animController;
+  late AnimationController _shimmerController;
   late Animation<double> _fadeAnimation;
 
   @override
@@ -28,6 +29,11 @@ class _AdminDashboardState extends State<AdminDashboard>
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
+    _shimmerController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    )..repeat();
+
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOut),
     );
@@ -38,54 +44,69 @@ class _AdminDashboardState extends State<AdminDashboard>
   void dispose() {
     _tabController.dispose();
     _animController.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Animated Header
-            FadeInWidget(
-              duration: const Duration(milliseconds: 600),
-              child: _buildHeader(),
-            ),
-
-            // Tab Bar
-            FadeInWidget(
-              delay: const Duration(milliseconds: 200),
-              child: _buildTabBar(),
-            ),
-
-            // Content
-            Expanded(
-              child: FadeTransition(
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppColors.saloonBg),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Art Deco Header
+              FadeTransition(
                 opacity: _fadeAnimation,
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.secondary, width: 2),
-                    boxShadow: AppColors.elevatedShadow,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: const [
-                        AdminShopList(),
-                        AdminUserList(),
+                child: _buildHeader(),
+              ),
+
+              // Tab Bar with Art Deco styling
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: _buildTabBar(),
+              ),
+
+              // Content Area
+              Expanded(
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.parchmentGradient,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: AppColors.gold, width: 2),
+                      boxShadow: AppColors.elevatedShadow,
+                    ),
+                    child: Column(
+                      children: [
+                        // Decorative top border
+                        _buildDecoTopBorder(),
+
+                        // Tab content
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(2),
+                            ),
+                            child: TabBarView(
+                              controller: _tabController,
+                              children: const [
+                                AdminShopList(),
+                                AdminUserList(),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -95,14 +116,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.woodDark,
-            AppColors.woodMedium,
-          ],
-        ),
+        gradient: AppColors.woodGradient,
         border: Border(
           bottom: BorderSide(color: AppColors.gold, width: 3),
         ),
@@ -114,79 +128,155 @@ class _AdminDashboardState extends State<AdminDashboard>
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Sheriff Badge Icon
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: AppColors.goldGradient,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.gold.withValues(alpha: 0.4),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.shield_rounded,
-              size: 28,
-              color: AppColors.woodDark,
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // Title & Subtitle
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ShaderMask(
-                  shaderCallback: (bounds) =>
-                      AppColors.goldGradient.createShader(bounds),
-                  child: Text(
-                    "SHERIFF'S OFFICE",
-                    style: GoogleFonts.rye(
-                      fontSize: 22,
-                      color: Colors.white,
-                      letterSpacing: 1.5,
+          Row(
+            children: [
+              // Art Deco Badge with sunburst
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Animated sunburst
+                  AnimatedBuilder(
+                    animation: _shimmerController,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        size: const Size(70, 70),
+                        painter: _SunburstPainter(
+                          progress: _shimmerController.value,
+                          color: AppColors.gold,
+                        ),
+                      );
+                    },
+                  ),
+                  // Badge
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.goldGradient,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.goldDark, width: 2),
+                      boxShadow: AppColors.goldGlow,
+                    ),
+                    child: const Icon(
+                      Icons.shield_rounded,
+                      size: 28,
+                      color: AppColors.woodDark,
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(width: 16),
+
+              // Title & Subtitle
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) =>
+                          AppColors.goldGradient.createShader(bounds),
+                      child: Text(
+                        "SHERIFF'S OFFICE",
+                        style: GoogleFonts.rye(
+                          fontSize: 22,
+                          color: Colors.white,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _buildDecoLine(30),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Administration & Oversight",
+                          style: GoogleFonts.crimsonText(
+                            fontSize: 13,
+                            color: AppColors.gold.withValues(alpha: 0.8),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildDecoLine(30),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  "Administration & Oversight",
-                  style: GoogleFonts.crimsonText(
-                    fontSize: 13,
-                    color: AppColors.gold.withValues(alpha: 0.8),
-                    fontStyle: FontStyle.italic,
+              ),
+
+              // Logout Button with Art Deco styling
+              GestureDetector(
+                onTap: () => _showLogoutDialog(),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+                  ),
+                  child: const Icon(
+                    Icons.logout_rounded,
+                    color: AppColors.gold,
+                    size: 22,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
 
-          // Logout Button
-          GestureDetector(
-            onTap: () => _showLogoutDialog(),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
-              ),
-              child: Icon(
-                Icons.logout_rounded,
-                color: AppColors.gold,
-                size: 22,
-              ),
-            ),
+          // Art Deco decorative bottom pattern
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildChevronRow(5),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDecoLine(double width) {
+    return Container(
+      width: width,
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.gold.withValues(alpha: 0),
+            AppColors.gold.withValues(alpha: 0.5),
+            AppColors.gold.withValues(alpha: 0),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChevronRow(int count) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(count, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Transform.rotate(
+            angle: math.pi / 4,
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.6),
+                border: Border.all(
+                  color: AppColors.gold.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 
@@ -194,9 +284,9 @@ class _AdminDashboardState extends State<AdminDashboard>
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        gradient: AppColors.parchmentGradient,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.border, width: 1.5),
       ),
       child: TabBar(
         controller: _tabController,
@@ -206,8 +296,8 @@ class _AdminDashboardState extends State<AdminDashboard>
         dividerColor: Colors.transparent,
         indicator: BoxDecoration(
           gradient: AppColors.leatherGradient,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.secondary),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: AppColors.gold, width: 1.5),
         ),
         indicatorPadding: const EdgeInsets.all(4),
         labelStyle: GoogleFonts.rye(fontSize: 13, letterSpacing: 1),
@@ -217,9 +307,27 @@ class _AdminDashboardState extends State<AdminDashboard>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.store_rounded, size: 18),
+                Transform.rotate(
+                  angle: math.pi / 4,
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    color: AppColors.gold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.store_rounded, size: 18),
                 const SizedBox(width: 8),
                 const Text("REGISTRY"),
+                const SizedBox(width: 8),
+                Transform.rotate(
+                  angle: math.pi / 4,
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    color: AppColors.gold,
+                  ),
+                ),
               ],
             ),
           ),
@@ -227,13 +335,53 @@ class _AdminDashboardState extends State<AdminDashboard>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.people_rounded, size: 18),
+                Transform.rotate(
+                  angle: math.pi / 4,
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    color: AppColors.gold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.people_rounded, size: 18),
                 const SizedBox(width: 8),
                 const Text("CITIZENS"),
+                const SizedBox(width: 8),
+                Transform.rotate(
+                  angle: math.pi / 4,
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    color: AppColors.gold,
+                  ),
+                ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDecoTopBorder() {
+    return Container(
+      height: 16,
+      decoration: const BoxDecoration(
+        gradient: AppColors.bronzeGradient,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(11, (index) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: CustomPaint(
+              size: const Size(8, 8),
+              painter: _DiamondPainter(color: AppColors.gold),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -244,54 +392,231 @@ class _AdminDashboardState extends State<AdminDashboard>
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.cardColor,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.secondary, width: 2),
+          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: AppColors.gold, width: 2),
         ),
-        title: Row(
+        title: Column(
           children: [
+            // Decorative top
             Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+              height: 20,
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildDecoLine(40),
+                  const SizedBox(width: 8),
+                  Transform.rotate(
+                    angle: math.pi / 4,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      color: AppColors.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildDecoLine(40),
+                ],
               ),
-              child: Icon(Icons.logout_rounded, color: AppColors.primary, size: 20),
             ),
-            const SizedBox(width: 12),
-            Text(
-              "Leave Office",
-              style: GoogleFonts.playfairDisplay(
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.goldGradient,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.logout_rounded,
+                    color: AppColors.woodDark,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  "Leave Office",
+                  style: GoogleFonts.playfairDisplay(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    fontSize: 20,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
         content: Text(
           "Are you sure you want to logout from the Sheriff's Office?",
+          textAlign: TextAlign.center,
           style: GoogleFonts.crimsonText(
             color: AppColors.textSecondary,
             fontSize: 15,
           ),
         ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              "Stay",
-              style: GoogleFonts.crimsonText(color: AppColors.textSecondary),
-            ),
-          ),
-          GlowingGoldButton(
-            label: "LOGOUT",
-            icon: Icons.logout_rounded,
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<AuthService>().logout();
-            },
+          Row(
+            children: [
+              Expanded(
+                child: _buildOutlinedButton(
+                  label: "STAY",
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildGoldButton(
+                  label: "LOGOUT",
+                  icon: Icons.logout_rounded,
+                  onPressed: () {
+                    Navigator.pop(context);
+                    context.read<AuthService>().logout();
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  Widget _buildGoldButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: AppColors.goldGradient,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.goldDark, width: 2),
+        boxShadow: AppColors.softGoldGlow,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: AppColors.woodDark, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.rye(
+                  fontSize: 13,
+                  color: AppColors.woodDark,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOutlinedButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.border, width: 2),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(2),
+          child: Center(
+            child: Text(
+              label,
+              style: GoogleFonts.crimsonText(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CUSTOM PAINTERS FOR ART DECO PATTERNS
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _SunburstPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  _SunburstPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius = size.width / 2;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    for (int i = 0; i < 16; i++) {
+      final angle = (i * math.pi / 8) + (progress * math.pi * 2 * 0.1);
+      final opacity = 0.1 + (math.sin(progress * math.pi * 2 + i) * 0.08);
+      paint.color = color.withValues(alpha: opacity.clamp(0.05, 0.25));
+
+      final innerRadius = maxRadius * 0.5;
+      final outerRadius = maxRadius * (0.8 + (i % 2) * 0.15);
+
+      final startX = center.dx + math.cos(angle) * innerRadius;
+      final startY = center.dy + math.sin(angle) * innerRadius;
+      final endX = center.dx + math.cos(angle) * outerRadius;
+      final endY = center.dy + math.sin(angle) * outerRadius;
+
+      canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SunburstPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _DiamondPainter extends CustomPainter {
+  final Color color;
+
+  _DiamondPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final path = Path()
+      ..moveTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height / 2)
+      ..lineTo(size.width / 2, size.height)
+      ..lineTo(0, size.height / 2)
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DiamondPainter oldDelegate) => false;
 }

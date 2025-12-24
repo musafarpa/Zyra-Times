@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:zyraslot/core/constants/app_colors.dart';
+import 'package:zyraslot/features/auth/services/auth_service.dart';
 import 'package:zyraslot/features/customer/screens/seat_booking_screen.dart';
 import 'package:zyraslot/features/shop/services/shop_service.dart';
+import 'package:zyraslot/features/chat/screens/chat_screen.dart';
 import 'package:zyraslot/models/shop_model.dart';
 import 'package:zyraslot/models/seat_model.dart';
 import 'package:zyraslot/models/service_model.dart';
@@ -66,6 +68,22 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
                 child: const Icon(Icons.arrow_back_rounded, color: AppColors.primary),
               ),
             ),
+            actions: [
+              // Chat Button
+              GestureDetector(
+                onTap: () => _openChat(context),
+                child: Container(
+                  margin: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardColor.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.secondary),
+                  ),
+                  child: const Icon(Icons.chat_rounded, color: AppColors.primary, size: 22),
+                ),
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,
@@ -642,6 +660,45 @@ class _ShopDetailsScreenState extends State<ShopDetailsScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _openChat(BuildContext context) async {
+    final authService = context.read<AuthService>();
+    final shopService = context.read<ShopService>();
+    final user = authService.currentUserModel;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please login to chat with the shop'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Get or create chat room
+    final chatRoom = await shopService.getOrCreateChatRoom(
+      shopId: shop.id,
+      shopName: shop.name,
+      customerId: user.uid,
+      customerName: user.name,
+    );
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            chatRoomId: chatRoom.id,
+            otherPartyName: shop.name,
+            currentUserId: user.uid,
+            currentUserName: user.name,
+            currentUserType: 'customer',
+          ),
+        ),
+      );
+    }
   }
 
   void _showBookingDialog(BuildContext context, SeatModel seat) {
